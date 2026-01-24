@@ -2,27 +2,25 @@
 
 ## 3.53.2
 
-### Patch Changes
-
 - 1393eac: Add endpoint configuration file support for on-premise deployments
 
-  Enterprise customers can now configure custom API endpoints by creating a `~/.cline/endpoints.json` file with custom URLs for `appBaseUrl`, `apiBaseUrl`, and `mcpBaseUrl`. When this file is present, Cline runs in on-premise mode with the custom endpoints.
+Enterprise customers can now configure custom API endpoints by creating a `~/.cline/endpoints.json` file with custom URLs for `appBaseUrl`, `apiBaseUrl`, and `mcpBaseUrl`. When this file is present, Cline runs in on-premise mode with the custom endpoints.
 
 - 0edf6d7: fix: prevent infinite retry loops when replace_in_file fails repeatedly
 
-  Add safeguards to prevent the LLM from getting stuck in infinite retry loops when `replace_in_file` operations fail repeatedly. The system now detects repeated failures and provides better guidance to break out of retry cycles.
+Add safeguards to prevent the LLM from getting stuck in infinite retry loops when `replace_in_file` operations fail repeatedly. The system now detects repeated failures and provides better guidance to break out of retry cycles.
 
 - e297404: fix: skip diff error UI handling during streaming to prevent flickering
 
-  Suppress diff view error notifications while content is actively streaming to prevent visual flickering and improve user experience. Error handling is deferred until streaming completes.
+Suppress diff view error notifications while content is actively streaming to prevent visual flickering and improve user experience. Error handling is deferred until streaming completes.
 
 - 8118e11: fix(extract-text): strip notebook outputs to reduce context size
 
-  Strip notebook cell outputs when extracting text content from Jupyter notebooks, significantly reducing the amount of context sent to the LLM while preserving the essential code and markdown content.
+Strip notebook cell outputs when extracting text content from Jupyter notebooks, significantly reducing the amount of context sent to the LLM while preserving the essential code and markdown content.
 
 - de630c6: fix: throttle diff view updates during streaming
 
-  Add throttling to diff view updates during content streaming to reduce UI flickering and improve performance. Updates are now batched at reasonable intervals instead of firing on every token received.
+Add throttling to diff view updates during content streaming to reduce UI flickering and improve performance. Updates are now batched at reasonable intervals instead of firing on every token received.
 
 - dc85299: Remove deprecated zai-glm-4.6 model from Cerebras provider
 - f2c16ba: Make Sonnet 4.5 the default Amazon Bedrock model id
