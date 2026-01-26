@@ -1,341 +1,302 @@
-# Cline Evaluation System
+# Cline Evaluation Framework
 
-This directory contains the evaluation system for benchmarking Cline against various coding evaluation frameworks.
+A comprehensive three-layer testing system for measuring Cline's performance across different granularities and time scales.
 
-## Overview
-
-The Cline Evaluation System allows you to:
-
-1. Run Cline against standardized coding benchmarks
-2. Collect comprehensive metrics on performance
-3. Generate detailed reports on evaluation results
-4. Compare performance across different models and benchmarks
-
-## Architecture
-
-The evaluation system consists of two main components:
-
-1. **CLI Tool**: Command-line interface in `evals/cli/` for orchestrating evaluations
-2. **Diff Edit Benchmark**: Separate command using the CLI tool that runs a comprehensive diff editing benchmark suite on real world cases, along with a streamlit dashboard displaying the results. For more details, see the Diff Edit Benchmark [README](./diff-edits/README.md). Make sure you add a `evals/diff-edits/cases` folder with all the conversation jsons.
-
-## Directory Structure
+## Architecture Overview
 
 ```
-evals/                            # Main directory for evaluation system
-├── cli/                          # CLI tool for orchestrating evaluations
-│   └── src/
-│       ├── index.ts              # CLI entry point
-│       ├── commands/             # CLI commands (setup, run, report)
-│       ├── adapters/             # Benchmark adapters
-│       ├── db/                   # Database management
-│       └── utils/                # Utility functions
-├── diff-edits/                   # Diff editing evaluation suite
-│   ├── cases/                    # Test case JSON files
-│   ├── results/                  # Evaluation results
-│   ├── diff-apply/               # Diff application logic
-│   ├── parsing/                  # Assistant message parsing
-│   └── prompts/                  # System prompts
-├── repositories/                 # Cloned benchmark repositories
-│   └── exercism/                 # Exercism (Aider Polyglot)
-├── results/                      # Evaluation results storage
-│   ├── runs/                     # Individual run results
-│   └── reports/                  # Generated reports
-└── README.md                     # This file
+evals/
+├── benchmarks/
+│   ├── tool-precision/         # Individual tool testing (seconds)
+│   ├── coding-exercises/       # Small programming tasks (minutes)
+│   └── real-world/             # Production bugs via cline-bench (20-30 min/task)
+│
+├── analysis/                   # Unified TypeScript analysis framework
+│   ├── src/
+│   │   ├── parsers/            # Harbor, tool, exercise result parsers
+│   │   ├── reporters/          # Markdown, JSON output generators
+│   │   ├── classifier.ts       # Failure pattern matching
+│   │   ├── metrics.ts          # pass@k, pass^k, flakiness calculations
+│   │   └── cli.ts              # Main CLI entry point
+│   └── patterns/
+│       └── cline-failures.yaml # Known failure patterns (Gemini #7974, Claude #7998)
+│
+└── baselines/                  # Performance baselines for regression detection
 ```
+
+## Three Complementary Test Layers
+
+### 1. Tool Precision Testing (Fast - Seconds)
+
+Tests individual Cline tools in isolation without full agent complexity.
+
+**Location:** `benchmarks/tool-precision/`
+
+**Current Coverage:**
+- `replace-in-file/` - 100+ test cases for diff-based file editing
+
+**Purpose:**
+- High-precision validation of core tool behavior
+- Quick feedback during development
+- Regression detection for tool changes
+
+**Example:**
+```bash
+cd benchmarks/tool-precision/replace-in-file
+npm test
+```
+
+### 2. Coding Exercises (Medium - Minutes)
+
+Small, focused programming tasks for fast regression testing.
+
+**Location:** `benchmarks/coding-exercises/`
+
+**Coverage:** Polyglot exercises (Python, JavaScript, Rust, Go, etc.)
+
+**Purpose:**
+- Smoke tests before deployment
+- Quick model capability checks
+- Language-specific regression testing
+
+**Example:**
+```bash
+cd benchmarks/coding-exercises
+npm test -- --count 10
+```
+
+### 3. Real-World Tasks (Slow - 20-30 min/task)
+
+Full agent complexity on production bugs from real Cline user sessions.
+
+**Location:** `benchmarks/real-world/cline-bench/` (git submodule)
+
+**Source:** [cline/cline-bench](https://github.com/cline/cline-bench) - 12 curated real-world tasks
+
+**Purpose:**
+- Measure full agent performance on production scenarios
+- Capture nondeterministic behavior and flakiness
+- Compare model capabilities on realistic workloads
+
+**Example:**
+```bash
+cd benchmarks/real-world/cline-bench
+export API_KEY=sk-ant-your-key
+harbor run -p tasks/01k7a12sd1nk15j08e6x0x7v9e-discord-trivia-approval-keyerror \
+           -a cline-cli \
+           -m anthropic:claude-sonnet-4-5:1m \
+           --env docker \
+           -k 3
+```
+
+## Unified Analysis Framework
+
+All three test layers feed into a common TypeScript analysis framework.
+
+### Key Features
+
+**Failure Classification:**
+- Pattern-based categorization (provider bugs, transient failures, task failures)
+- Links failures to known GitHub issues (#7974, #7998)
+- Distinguishes retriable from non-retriable failures
+
+**Advanced Metrics:**
+- **pass@k:** P(at least 1 of k trials passes) - measures solution-finding capability
+- **pass^k:** P(all k trials pass) - measures reliability/consistency
+- **Flakiness Score:** Entropy-based variance measure
+
+**Rich Reporting:**
+- Markdown reports with color coding and visual indicators
+- Structured JSON output with schema versioning
+- Minimal JSON for CI/CD integration
+
+### CLI Usage
+
+```bash
+cd analysis
+
+# Analyze a completed Harbor job
+npm start -- analyze ../benchmarks/real-world/cline-bench/jobs/2025-01-25__10-30-00/
+
+# Compare baseline vs current for regression detection
+npm start -- compare ../baselines/real-world-sonnet-4-5.json pr-results.json --threshold 10
+
+# Generate different output formats
+npm start -- analyze <job-dir> --format markdown|json|minimal --output report.md
+```
+
+### Example Output
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Cline Bench Analysis Report
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Job: jobs/2025-01-25__10-30-00/
+Model: anthropic:claude-sonnet-4-5:1m
+Tasks: 12 | Trials per task: 3
+
+Overall Metrics:
+  pass@1: 75.0%  (9/12 tasks passed on first try)
+  pass@3: 83.3%  (10/12 tasks passed within 3 tries)
+  pass^3: 66.7%  (8/12 tasks passed ALL 3 trials - reliability)
+
+Known Issues Detected:
+  • gemini_signature (1 occurrence) - Issue #7974
+  • rate_limit (2 occurrences)
+
+Total Cost: $12.34 | Avg per task: $1.03
+```
+
+## CI Integration
+
+### Regression Detection
+
+GitHub Actions runs tool precision tests on every PR:
+
+```yaml
+# Triggered on PRs touching src/core/, src/api/, or evals/
+- Run tool precision tests
+- Compare against baseline
+- Fail if pass rate drops >5%
+- Post comment on PR if regression detected
+```
+
+### Baseline Management
+
+Baselines stored in `baselines/` directory:
+- **tool-precision-replace-in-file.json** - Update after tool behavior changes
+- **coding-exercises-50.json** - Update quarterly
+- **real-world-sonnet-4-5.json** - Update per model version
+
+See `baselines/README.md` for update policy and procedures.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 16+
-- VSCode with Cline extension installed
-- Git
+- Node.js 20+
+- Docker (for real-world tasks)
+- API keys (Anthropic, OpenAI, etc.)
 
-### Installation
-
-1. Build the CLI tool:
+### Setup
 
 ```bash
-cd evals
+# Clone with submodules
+git clone --recursive https://github.com/cline/cline.git
+
+# Or if already cloned
+git submodule update --init --recursive
+
+# Install analysis framework
+cd evals/analysis
 npm install
-npm run build:cli
 ```
 
-### Usage
+### Running Your First Evaluation
 
-#### Setting Up Benchmarks
-
+**Quick Start (Tool Precision):**
 ```bash
-cd evals/cli
-node dist/index.js setup
+cd evals/benchmarks/tool-precision/replace-in-file
+npm install
+npm test
 ```
 
-This will clone and set up all benchmark repositories. You can specify specific benchmarks:
-
+**Real-World Tasks:**
 ```bash
-node dist/index.js setup --benchmarks exercism
+cd evals/benchmarks/real-world/cline-bench
+export API_KEY=sk-ant-your-key
+harbor run -p tasks/01k7a12sd1nk15j08e6x0x7v9e-discord-trivia-approval-keyerror \
+           -a cline-cli \
+           -m anthropic:claude-sonnet-4-5:1m \
+           --env docker \
+           -k 3
+
+# Analyze results
+cd ../../analysis
+npm start -- analyze ../benchmarks/real-world/cline-bench/jobs/LATEST/
 ```
 
-#### Running Evaluations
+## Architecture Decisions
 
-```bash
-node dist/index.js run --benchmark exercism --count 10
-```
+### Why Three Layers?
 
-Options:
-- `--benchmark`: Specific benchmark to run (default: exercism)
-- `--count`: Number of tasks to run (default: all available tasks)
+Different test types serve different purposes:
 
-**Note:** Model selection is currently configured through the Cline CLI itself, not through evaluation flags.
+- **Tool Precision:** Fast feedback, high signal-to-noise, isolated testing
+- **Coding Exercises:** Balanced speed/realism, good for smoke tests
+- **Real-World Tasks:** Full complexity, captures edge cases, measures production readiness
 
-#### Generating Reports
+### Why TypeScript?
 
-```bash
-node dist/index.js report
-```
+- Consistent with main Cline codebase
+- Strong typing for schema validation
+- Rich Node.js ecosystem for parsing/reporting
+- Fast enough for analysis workloads
 
-Options:
-- `--format`: Report format (json, markdown) (default: markdown)
-- `--output`: Output path for the report
+### Why cline-bench as a Submodule?
 
-## Benchmarks
+- **Agent-agnostic:** Can be used by other AI coding agents
+- **Clear boundary:** We consume benchmarks, don't modify them
+- **Explicit updates:** Tracked via git commit hash
+- **Community benefit:** Other projects can use the same benchmark
 
-### Exercism
+### Why pass@k and pass^k?
 
-Modified Exercism exercises from the [polyglot-benchmark](https://github.com/Aider-AI/polyglot-benchmark) repository. These are small, focused programming exercises in various languages.
+In nondeterministic AI systems:
+- **pass@k** measures solution-finding capability (at least one success in k tries)
+- **pass^k** measures reliability (all k tries succeed)
 
-### SWE-Bench (Coming Soon)
-
-Real-world software engineering tasks from the [SWE-bench](https://github.com/SWE-bench/SWE-bench) repository.
+As trials increase, these metrics diverge for flaky tasks:
+- pass@k → 100% (eventually finds a solution)
+- pass^k → 0% (can't reliably reproduce)
 
-### SWELancer (Coming Soon)
+Both metrics matter for production AI systems.
 
-Freelance-style programming tasks from the SWELancer benchmark.
+## Contributing
 
-### Multi-SWE-Bench (Coming Soon)
-
-Multi-file software engineering tasks from the Multi-SWE-Bench repository.
-
-## Diff Edit Evaluations
-
-The Cline Evaluation System includes a specialized suite for evaluating how well models can make precise edits to files using the `replace_in_file` tool.
-
-### Overview
-
-Diff edit evaluations test a model's ability to:
-
-1. Understand file content and identify specific sections to modify
-2. Generate correct SEARCH/REPLACE blocks for targeted edits
-3. Successfully apply changes without introducing errors
-
-### Directory Structure
-
-```
-diff-edits/
-├── cases/                  # Test case JSON files
-├── results/                # Evaluation results
-├── ClineWrapper.ts         # Wrapper for model interaction
-├── TestRunner.ts           # Main test execution logic
-├── types.ts                # Type definitions
-├── diff-apply/             # Diff application logic
-├── parsing/                # Assistant message parsing
-└── prompts/                # System prompts
-```
-
-### Creating Test Cases
-
-Test cases are defined as JSON files in the `diff-edits/cases/` directory. Each test case should include:
-
-```json
-{
-  "test_id": "example_test_1",
-  "messages": [
-    {
-      "role": "user",
-      "text": "Please fix the bug in this code...",
-      "images": []
-    },
-    {
-      "role": "assistant",
-      "text": "I'll help you fix that bug..."
-    }
-  ],
-  "file_contents": "// Original file content here\nfunction example() {\n  // Code with bug\n}",
-  "file_path": "src/example.js",
-  "system_prompt_details": {
-    "mcp_string": "",
-    "cwd_value": "/path/to/working/directory",
-    "browser_use": false,
-    "width": 900,
-    "height": 600,
-    "os_value": "macOS",
-    "shell_value": "/bin/zsh",
-    "home_value": "/Users/username",
-    "user_custom_instructions": ""
-  },
-  "original_diff_edit_tool_call_message": ""
-}
-```
-
-### Running Diff Edit Evaluations
-
-#### Single Model Evaluation
-
-```bash
-cd evals/cli
-node dist/index.js run-diff-eval --model-ids "anthropic/claude-3-5-sonnet-20241022"
-```
-
-#### Multi-Model Evaluation
-
-Compare multiple models in a single evaluation run:
-
-```bash
-# Compare Claude and Grok models
-node dist/index.js run-diff-eval \
-  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-beta" \
-  --max-cases 10 \
-  --valid-attempts-per-case 3 \
-  --verbose
-
-# Compare multiple Claude variants
-node dist/index.js run-diff-eval \
-  --model-ids "anthropic/claude-3-5-sonnet-20241022,anthropic/claude-3-5-haiku-20241022,anthropic/claude-3-opus-20240229" \
-  --max-cases 5 \
-  --valid-attempts-per-case 2 \
-  --parallel
-```
-
-#### Options
-
-- `--model-ids`: Comma-separated list of model IDs to evaluate (required)
-- `--system-prompt-name`: System prompt to use (default: "basicSystemPrompt")
-- `--valid-attempts-per-case`: Number of attempts per test case per model (default: 1)
-- `--max-cases`: Maximum number of test cases to run (default: all available)
-- `--parsing-function`: Function to parse assistant messages (default: "parseAssistantMessageV2")
-- `--diff-edit-function`: Function to apply diffs (default: "constructNewFileContentV2")
-- `--test-path`: Path to test cases (default: diff-edits/cases)
-- `--thinking-budget`: Tokens allocated for thinking (default: 0)
-- `--parallel`: Run tests in parallel (flag)
-- `--replay`: Use pre-recorded LLM output (flag)
-- `--verbose`: Enable detailed logging (flag)
-
-#### Examples
-
-```bash
-# Quick test with 2 models, 4 cases, 2 attempts each
-node dist/index.js run-diff-eval \
-  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-beta" \
-  --max-cases 4 \
-  --valid-attempts-per-case 2 \
-  --verbose
-
-# Comprehensive evaluation with parallel execution
-node dist/index.js run-diff-eval \
-  --model-ids "anthropic/claude-3-5-sonnet-20241022,anthropic/claude-3-5-haiku-20241022" \
-  --system-prompt-name claude4SystemPrompt \
-  --valid-attempts-per-case 5 \
-  --max-cases 20 \
-  --parallel \
-  --verbose
-```
-
-### Database Storage & Analytics
-
-All evaluation results are automatically stored in a SQLite database (`diff-edits/evals.db`) for advanced analytics and comparison. The database includes:
-
-- **System Prompts**: Versioned system prompt content with hashing for deduplication
-- **Processing Functions**: Versioned parsing and diff-edit function configurations
-- **Files**: Original and edited file content with content-based hashing
-- **Runs**: Evaluation run metadata and configuration
-- **Cases**: Individual test case information with context tokens
-- **Results**: Detailed results with timing, cost, and success metrics
-
-### Interactive Dashboard
-
-Launch the Streamlit dashboard to visualize and analyze evaluation results:
-
-```bash
-cd diff-edits/dashboard
-streamlit run app.py
-```
-
-The dashboard provides:
-
-- **Model Performance Comparison**: Side-by-side comparison of success rates, latency, and costs
-- **Interactive Charts**: Success rate trends, latency vs cost analysis, and performance metrics
-- **Detailed Drill-Down**: Individual result analysis with file content viewing
-- **Run Selection**: Browse and compare different evaluation runs
-- **Real-time Updates**: Automatically refreshes with new evaluation data
-
-#### Dashboard Features
-
-1. **Hero Section**: Overview of current run with key metrics
-2. **Model Cards**: Performance cards with grades and detailed metrics
-3. **Comparison Charts**: Interactive Plotly charts for visual analysis
-4. **Result Explorer**: Detailed view of individual test results including:
-   - Original and edited file content
-   - Raw model output
-   - Parsed tool calls
-   - Timing and cost metrics
-   - Error analysis
-
-#### Quick Start Dashboard
-
-```bash
-# Run a quick evaluation
-node cli/dist/index.js run-diff-eval \
-  --model-ids "anthropic/claude-3-5-sonnet-20241022,x-ai/grok-beta" \
-  --max-cases 4 \
-  --valid-attempts-per-case 2 \
-  --verbose
-
-# Launch dashboard to view results
-cd diff-edits/dashboard && streamlit run app.py
-```
-
-### Legacy Results
-
-For backward compatibility, results are also saved as JSON files in the `diff-edits/results/` directory. The JSON results include:
-- Success/failure status
-- Extracted tool calls
-- Diff edit content
-- Token usage and cost metrics
-
-## Metrics
-
-The evaluation system collects the following metrics:
-
-- **Token Usage**: Input and output tokens
-- **Cost**: Estimated cost of API calls
-- **Duration**: Time taken to complete tasks
-- **Tool Usage**: Number of tool calls and failures
-- **Success Rate**: Percentage of tasks completed successfully
-- **Test Success Rate**: Percentage of tests passed
-- **Functional Correctness**: Ratio of tests passed to total tests
-
-## Reports
-
-Reports are generated in Markdown or JSON format and include:
-
-- Overall summary
-- Benchmark-specific results
-- Model-specific results
-- Tool usage statistics
-- Charts and visualizations
-
-## Development
-
-### Adding a New Benchmark
-
-1. Create a new adapter in `evals/cli/src/adapters/`
-2. Implement the `BenchmarkAdapter` interface
-3. Register the adapter in `evals/cli/src/adapters/index.ts`
-
-### Extending Metrics
-
-To add new metrics:
-
-1. Update the database schema in `evals/cli/src/db/schema.ts`
-2. Add collection logic in `evals/cli/src/utils/results.ts`
-3. Update report generation in `evals/cli/src/commands/report.ts`
+### Adding Test Cases
+
+**Tool Precision:**
+See `benchmarks/tool-precision/replace-in-file/README.md`
+
+**Coding Exercises:**
+See `benchmarks/coding-exercises/README.md`
+
+**Real-World Tasks:**
+Contribute to [cline/cline-bench](https://github.com/cline/cline-bench)
+
+### Test Data Provenance
+
+All test cases must include metadata documenting their origin:
+- Source (real session, synthetic, user-contributed, regression bug)
+- Date collected
+- License (MIT or Apache 2.0)
+- Contributor
+- Description
+
+See individual benchmark READMEs for specific provenance requirements.
+
+## Legacy Code
+
+The previous evaluation system (`evals/cli/`) has been moved to `evals/legacy/cli/` for reference. The new system provides:
+- Better separation of concerns (execution vs analysis)
+- Unified metrics across all test types
+- Improved failure classification
+- Schema-versioned output for stability
+
+## Resources
+
+- [cline-bench repository](https://github.com/cline/cline-bench)
+- [cline-bench initiative blog post](https://cline.bot/blog/cline-bench-initiative)
+- [Harbor framework documentation](https://harborframework.com)
+- [HumanEval paper](https://arxiv.org/abs/2107.03374) (pass@k methodology)
+
+## License
+
+Test data and benchmarks:
+- Tool precision tests: MIT
+- Coding exercises: MIT (derived from Aider's polyglot-benchmark)
+- Real-world tasks: Apache 2.0 (via cline-bench)
+
+Analysis framework: Apache 2.0 (same as Cline)
