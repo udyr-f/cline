@@ -1,0 +1,12 @@
+{
+	"schema_version": "1.0",
+	"benchmark": "coding-exercises",
+	"generated_at": "2025-01-25T00:00:00.000Z",
+	"total_exercises": 0,
+	"passed": 0,
+	"failed": 0,
+	"pass_at_1": 0.0,
+	"avg_duration_sec": 0,
+	"known_failures": [],
+	"note": "Placeholder baseline - run benchmarks to generate actual baseline"
+}

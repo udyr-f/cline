@@ -1,0 +1,25 @@
+{
+	"schema_version": "1.0",
+	"metadata": {
+		"generated_at": "2025-01-25T00:00:00.000Z",
+		"analysis_version": "1.0.0",
+		"job_id": "placeholder",
+		"model": "anthropic:claude-sonnet-4-5:1m"
+	},
+	"summary": {
+		"total_tasks": 0,
+		"total_trials": 0,
+		"pass_at_1": 0.0,
+		"pass_at_3": 0.0,
+		"pass_caret_3": 0.0,
+		"total_cost_usd": 0.0,
+		"total_duration_sec": 0,
+		"flaky_task_count": 0
+	},
+	"tasks": [],
+	"failures": {
+		"by_category": {},
+		"by_pattern": []
+	},
+	"note": "Placeholder baseline - run cline-bench to generate actual baseline"
+}

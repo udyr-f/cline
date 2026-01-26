@@ -1,0 +1,148 @@
+name: Eval Regression Check
+
+on:
+  pull_request:
+    paths:
+      - 'src/core/**'
+      - 'src/api/**'
+      - 'evals/**'
+      - '.github/workflows/cline-evals-regression.yml'
+
+# Prevent concurrent runs for the same PR
+concurrency:
+  group: evals-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tool-precision:
+    name: Tool Precision Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true  # Fetch cline-bench submodule
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd evals/benchmarks/tool-precision/replace-in-file
+          npm ci
+
+      - name: Run tool precision tests
+        run: |
+          cd evals/benchmarks/tool-precision/replace-in-file
+          npm test -- --output-json > pr-results.json
+
+      - name: Install analysis framework
+        run: |
+          cd evals/analysis
+          npm ci
+
+      - name: Compare against baseline
+        run: |
+          cd evals/analysis
+          npm start -- compare \
+            ../baselines/tool-precision-replace-in-file.json \
+            ../benchmarks/tool-precision/replace-in-file/pr-results.json \
+            --threshold 5
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tool-precision-results
+          path: evals/benchmarks/tool-precision/replace-in-file/pr-results.json
+
+      - name: Comment on PR
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Tool precision regression detected**\n\nThe `replace_in_file` tool pass rate dropped by more than 5%. Please review the changes or update the baseline if this is intentional.\n\nSee the workflow run for details.'
+            })
+
+  # real-world-smoke-test:
+  #   name: Real-World Smoke Test
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'eval:real-world')
+  #
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: true  # Important: fetch cline-bench submodule
+  #
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+  #         cache: 'npm'
+  #
+  #     - name: Install Harbor
+  #       run: |
+  #         # Install Harbor framework
+  #         npm install -g @harbor/cli
+  #
+  #     - name: Run smoke test (3 tasks)
+  #       env:
+  #         API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  #       run: |
+  #         cd evals/benchmarks/real-world/cline-bench
+  #         # Run 3 representative tasks with 2 trials each
+  #         harbor run \
+  #           -p tasks/01k7a12sd1nk15j08e6x0x7v9e-discord-trivia-approval-keyerror \
+  #           -p tasks/01k7a12se2b9z0f8e6x0x8w0af-telegram-plugin-bug \
+  #           -p tasks/01k7a12sf3c0a1g9f7y1y9x1bg-police-sync-error \
+  #           -a cline-cli \
+  #           -m anthropic:claude-sonnet-4-5:1m \
+  #           --env docker \
+  #           -k 2
+  #
+  #     - name: Install analysis framework
+  #       run: |
+  #         cd evals/analysis
+  #         npm ci
+  #
+  #     - name: Analyze results
+  #       run: |
+  #         cd evals/analysis
+  #         npm start -- analyze ../benchmarks/real-world/cline-bench/jobs/LATEST/ --format json > pr-results.json
+  #
+  #     - name: Compare against baseline
+  #       run: |
+  #         cd evals/analysis
+  #         npm start -- compare \
+  #           ../baselines/real-world-sonnet-4-5.json \
+  #           pr-results.json \
+  #           --threshold 10
+  #
+  #     - name: Upload results
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: real-world-smoke-test-results
+  #         path: evals/analysis/pr-results.json
+  #
+  #     - name: Comment on PR
+  #       if: failure()
+  #       uses: actions/github-script@v7
+  #       with:
+  #         script: |
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: '⚠️ **Real-world task regression detected**\n\nThe smoke test (3 tasks) showed a pass@3 drop exceeding 10%. Please review the changes.\n\nSee the workflow run for detailed failure analysis.'
+  #           })

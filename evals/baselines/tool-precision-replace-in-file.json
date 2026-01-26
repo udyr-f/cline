@@ -1,0 +1,12 @@
+{
+	"schema_version": "1.0",
+	"benchmark": "tool-precision/replace-in-file",
+	"generated_at": "2025-01-25T00:00:00.000Z",
+	"total_cases": 0,
+	"passed": 0,
+	"failed": 0,
+	"pass_rate": 0.0,
+	"avg_latency_ms": 0,
+	"known_failures": [],
+	"note": "Placeholder baseline - run benchmarks to generate actual baseline"
+}
